@@ -211,6 +211,13 @@ def mapillary_v2_classes():
     ]
 
 
+def satellite_classes():
+    return ['background', 'building']
+
+def satellite_palette():
+    return [[0, 0, 0], [255, 0, 0]]
+
+
 def mapillary_v2_palette():
     """mapillary_v2_ palette for external use."""
     return [[165, 42, 42], [0, 192, 0], [250, 170, 31], [250, 170, 32],
@@ -435,7 +442,8 @@ dataset_aliases = {
     'stare': ['stare', 'STARE'],
     'lip': ['LIP', 'lip'],
     'mapillary_v1': ['mapillary_v1'],
-    'mapillary_v2': ['mapillary_v2']
+    'mapillary_v2': ['mapillary_v2'],
+    'satellite' : ['satellite'],
 }
 
 

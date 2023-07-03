@@ -118,3 +118,11 @@ mmseg/.mim
 
 # Pytorch
 *.pth
+
+
+# datacenter
+train-job.sh
+test-job.sh
+slurm*.out
+_inference
+_satellite
