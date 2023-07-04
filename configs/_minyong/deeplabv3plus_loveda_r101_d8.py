@@ -89,6 +89,16 @@ train_pipeline = [  # Training pipeline.
     dict(type='PackSegInputs')
 ]
 
+val_pipeline = [
+    dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
+    dict(type='Resize', scale=(224, 224), keep_ratio=True),
+    # add loading annotation after ``Resize`` because ground truth
+    # does not need to do resize data transform
+    dict(type='LoadAnnotations', reduce_zero_label=False),
+    dict(type='PackSegInputs')
+]
+
+
 test_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
     dict(type='Resize', scale=(224, 224), keep_ratio=True),
@@ -137,12 +147,28 @@ val_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(img_path='img_dir/val', seg_map_path='ann_dir/val'),
+        pipeline=val_pipeline))
+
+test_dataloader = dict(
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),  # Not shuffle during validation and testing.
+    dataset=dict(
+        type=dataset_type,
+        data_root=data_root,
+        data_prefix=dict(img_path='img_dir/test'),
         pipeline=test_pipeline))
 
-test_dataloader = val_dataloader
 
 val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU', 'mDice'])
-test_evaluator = val_evaluator
+
+# TODO: test evaluator for competition
+test_evaluator = dict(
+    type='CityscapesMetric',
+    format_only=True,
+    keep_results=True,
+    output_dir='_satellite/deeplabv3plus/format_results')
 
 
 

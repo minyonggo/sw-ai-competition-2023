@@ -33,8 +33,8 @@ def main():
     section_number = args.section
 
     print("Start Inference")
-    config_path = '/home/mykang/mmsegmentation/configs/_minyong/deeplabv3plus_loveda_r101_d8.py'
-    checkpoint_path = '/home/mykang/mmsegmentation/_satellite/deeplabv3plus/iter_1600.pth'
+    config_path = '/home/mykang/mmsegmentation/configs/_minyong/beit-base_upernet_8xb2.py'
+    checkpoint_path = '/home/mykang/mmsegmentation/_satellite/upernet_beit/iter_9000.pth'
 
 
     # Load models into memory
@@ -54,7 +54,7 @@ def main():
     for img_path in tqdm(test_images_section):
         result = mmseg_inferencer(img_path)
         
-        cv2.imwrite(f"/home/mykang/mmsegmentation/_inference/20230703_deeplabv3plus/{os.path.basename(img_path)}", result['predictions'])
+        cv2.imwrite(f"/home/mykang/mmsegmentation/_inference/20230704_beit_upernet/{os.path.basename(img_path)}", result['predictions'])
 
 
 if __name__ == "__main__":
