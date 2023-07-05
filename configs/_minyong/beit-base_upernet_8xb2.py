@@ -5,7 +5,7 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
 
-crop_size = (640, 640)  # The crop size during training.
+crop_size = (256, 256)  # The crop size during training.
 data_preprocessor = dict(  # The config of data preprocessor, usually includes image 
     type='SegDataPreProcessor',  # The type of data preprocessor.
     mean=[123.675, 116.28, 103.53],
@@ -68,8 +68,8 @@ model = dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)),
     # model training and testing settings
     train_cfg=dict(),
-    # test_cfg=dict(mode='whole'),
-    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(426, 426)),   # The test mode, options are 'whole' and 'slide'
+    test_cfg=dict(mode='whole'),
+    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(426, 426)),   # The test mode, options are 'whole' and 'slide'
     )
 
 
@@ -135,7 +135,7 @@ tta_pipeline = [
 
 
 train_dataloader = dict(
-    batch_size=4,  # Batch size of a single GPU
+    batch_size=32,  # Batch size of a single GPU
     num_workers=4,  # Worker to pre-fetch data for each single GPU
     persistent_workers=True,  # Shut down the worker processes after an epoch end, which can accelerate training speed.
     sampler=dict(type='InfiniteSampler', shuffle=True),
@@ -154,7 +154,7 @@ val_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        data_prefix=dict(img_path='img_dir/val', seg_map_path='ann_dir/val'),
+        data_prefix=dict(img_path='img_dir/val_slice', seg_map_path='ann_dir/val_slice'),
         pipeline=val_pipeline))
 
 test_dataloader = dict(
@@ -185,7 +185,7 @@ test_evaluator = dict(
 ########################################
 
 # optimizer
-optimizer = dict(type='AdamW', lr=3e-5, betas=(0.9, 0.999), weight_decay=0.05)
+optimizer = dict(type='AdamW', lr=5e-5, betas=(0.9, 0.999), weight_decay=0.05)
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=optimizer,
@@ -197,24 +197,25 @@ optim_wrapper = dict(
 param_scheduler = [
     dict(
         type='PolyLR',
-        eta_min=3e-6,
-        power=0.9,
-        begin=0,
+        power=1.0,
+        begin=1500,
         end=20000,
-        by_epoch=False)
+        eta_min=0.0,
+        by_epoch=False,
+    )
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000, val_interval=500)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=20000, val_interval=1000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type='ParamSchedulerHook'),
-    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=500),
+    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=1000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=1000))
 
 
 
@@ -228,8 +229,8 @@ env_cfg = dict(
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='nccl'),
 )
-vis_backends = [dict(type='LocalVisBackend'),
-                dict(type='TensorboardVisBackend')]
+vis_backends = [dict(type='LocalVisBackend')]
+                # dict(type='TensorboardVisBackend')]
 visualizer = dict(
     type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 log_processor = dict(by_epoch=False)
