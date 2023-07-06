@@ -54,7 +54,7 @@ def main():
     for img_path in tqdm(test_images_section):
         result = mmseg_inferencer(img_path)
         
-        cv2.imwrite(f"/home/mykang/mmsegmentation/_inference/20230704_beit_upernet/{os.path.basename(img_path)}", result['predictions'])
+        cv2.imwrite(f"/home/mykang/mmsegmentation/inference_/20230704_beit_upernet/{os.path.basename(img_path)}", result['predictions'])
 
 
 if __name__ == "__main__":

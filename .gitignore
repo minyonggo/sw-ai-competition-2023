@@ -124,5 +124,5 @@ mmseg/.mim
 train-job.sh
 test-job.sh
 slurm*.out
-_inference
+inference_
 _satellite
