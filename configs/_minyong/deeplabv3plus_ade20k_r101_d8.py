@@ -6,6 +6,7 @@
 norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
 
 crop_size = (256, 256)  # The crop size during training.
+test_img_size = (224, 224)
 data_preprocessor = dict(  # The config of data preprocessor, usually includes image 
     type='SegDataPreProcessor',  # The type of data preprocessor.
     mean=[123.675, 116.28, 103.53],
@@ -78,12 +79,12 @@ train_pipeline = [  # Training pipeline.
     dict(type='LoadAnnotations', reduce_zero_label=False),  # Second pipeline to load annotations for current image.
 
     # Augmentation pipeline that resize the images and their annotations.
-    dict(
-        type='RandomResize',
-        scale=(1024, 1024),
-        ratio_range=(0.7, 1.3),
-        keep_ratio=True),
-    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(
+    #     type='RandomResize',
+    #     scale=(1024, 1024),
+    #     ratio_range=(0.9, 1.1),
+    #     keep_ratio=True),
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
@@ -101,7 +102,7 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=crop_size, keep_ratio=True),
+    dict(type='Resize', scale=test_img_size, keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='LoadAnnotations', reduce_zero_label=False),
@@ -127,7 +128,7 @@ tta_pipeline = [
 
 
 train_dataloader = dict(
-    batch_size=32,  # Batch size of a single GPU
+    batch_size=16,  # Batch size of a single GPU
     num_workers=4,  # Worker to pre-fetch data for each single GPU
     persistent_workers=True,  # Shut down the worker processes after an epoch end, which can accelerate training speed.
     sampler=dict(type='InfiniteSampler', shuffle=True),
@@ -178,28 +179,21 @@ test_evaluator = dict(
 
 # optimizer
 # optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
-optimizer = dict(type='AdamW', lr=5e-5, betas=(0.9, 0.999), weight_decay=0.0005)
+optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.005)
 optim_wrapper = dict(type='OptimWrapper', optimizer=optimizer, clip_grad=None)
 # learning policy
 param_scheduler = [
-    dict(
-        type='LinearLR',
-        start_factor=1e-6,
-        by_epoch=False,
-        begin=0,
-        end=1500
-    ),
     dict(
         type='PolyLR',
         eta_min=1e-6,
         power=0.9,
         begin=0,
-        end=20000,
+        end=40000,
         by_epoch=False)
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=2000, val_interval=1000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=1000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
@@ -208,7 +202,7 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=1000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=1000))
 
 
 
@@ -222,16 +216,13 @@ env_cfg = dict(
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='nccl'),
 )
-vis_backends = [dict(type='LocalVisBackend'),
-                dict(type='TensorboardVisBackend')]
+vis_backends = [dict(type='LocalVisBackend')]
 visualizer = dict(
     type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 log_processor = dict(by_epoch=False)
 log_level = 'INFO'
 
 # LoveDA - DeepLabV3+, R-101-D8
-load_from = "https://download.openmmlab.com/mmsegmentation/v0.5/deeplabv3plus/deeplabv3plus_r101-d8_512x512_80k_loveda/deeplabv3plus_r101-d8_512x512_80k_loveda_20211105_110759-4c1f297e.pth"
-
-resume = False
+load_from = "https://download.openmmlab.com/mmsegmentation/v0.5/deeplabv3plus/deeplabv3plus_r101-d8_512x512_160k_ade20k/deeplabv3plus_r101-d8_512x512_160k_ade20k_20200615_123232-38ed86bb.pth"
 
 tta_model = dict(type='SegTTAModel')

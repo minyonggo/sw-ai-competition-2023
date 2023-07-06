@@ -81,18 +81,17 @@ model = dict(
 # dataset settings
 dataset_type = 'SatelliteDataset'  # Dataset type, this will be used to define the dataset.
 data_root = 'data/Satellite'  # Root path of data.
-# crop_size = (512, 512)  # The crop size during training.
 train_pipeline = [  # Training pipeline.
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path.
     dict(type='LoadAnnotations', reduce_zero_label=False),  # Second pipeline to load annotations for current image.
 
     # Augmentation pipeline that resize the images and their annotations.
-    dict(
-        type='RandomResize',
-        scale=(1024, 1024),
-        ratio_range=(0.7, 1.5),
-        keep_ratio=True),
-    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(
+    #     type='RandomResize',
+    #     scale=(1024, 1024),
+    #     ratio_range=(0.7, 1.3),
+    #     keep_ratio=True),
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
@@ -135,7 +134,7 @@ tta_pipeline = [
 
 
 train_dataloader = dict(
-    batch_size=32,  # Batch size of a single GPU
+    batch_size=16,  # Batch size of a single GPU
     num_workers=4,  # Worker to pre-fetch data for each single GPU
     persistent_workers=True,  # Shut down the worker processes after an epoch end, which can accelerate training speed.
     sampler=dict(type='InfiniteSampler', shuffle=True),
@@ -185,7 +184,7 @@ test_evaluator = dict(
 ########################################
 
 # optimizer
-optimizer = dict(type='AdamW', lr=5e-5, betas=(0.9, 0.999), weight_decay=0.05)
+optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05)
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=optimizer,
@@ -198,24 +197,24 @@ param_scheduler = [
     dict(
         type='PolyLR',
         power=1.0,
-        begin=1500,
-        end=20000,
+        begin=0,
+        end=50000,
         eta_min=0.0,
         by_epoch=False,
     )
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=20000, val_interval=1000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=50000, val_interval=2000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type='ParamSchedulerHook'),
-    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=1000),
+    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=2000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=1000))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=2000))
 
 
 
@@ -238,7 +237,5 @@ log_level = 'INFO'
 
 # load pretrained model from mmseg
 load_from = "https://download.openmmlab.com/mmsegmentation/v0.5/beit/upernet_beit-base_8x2_640x640_160k_ade20k/upernet_beit-base_8x2_640x640_160k_ade20k-eead221d.pth"
-
-resume = False
 
 tta_model = dict(type='SegTTAModel')
