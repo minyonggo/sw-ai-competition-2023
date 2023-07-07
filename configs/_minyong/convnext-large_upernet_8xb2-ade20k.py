@@ -1,4 +1,4 @@
-crop_size = (256, 256)
+crop_size = (224, 224)
 data_preprocessor = dict(
     type='SegDataPreProcessor',
     mean=[123.675, 116.28, 103.53],
@@ -73,12 +73,12 @@ train_pipeline = [  # Training pipeline.
     dict(type='LoadAnnotations', reduce_zero_label=False),  # Second pipeline to load annotations for current image.
 
     # Augmentation pipeline that resize the images and their annotations.
-    dict(
-        type='RandomResize',
-        scale=(1024, 1024),
-        ratio_range=(0.7, 1.3),
-        keep_ratio=True),
-    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
+    # dict(
+    #     type='RandomResize',
+    #     scale=(1024, 1024),
+    #     ratio_range=(0.7, 1.3),
+    #     keep_ratio=True),
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
@@ -121,7 +121,7 @@ tta_pipeline = [
 
 
 train_dataloader = dict(
-    batch_size=32,  # Batch size of a single GPU
+    batch_size=16,  # Batch size of a single GPU
     num_workers=4,  # Worker to pre-fetch data for each single GPU
     persistent_workers=True,  # Shut down the worker processes after an epoch end, which can accelerate training speed.
     sampler=dict(type='InfiniteSampler', shuffle=True),
@@ -187,11 +187,9 @@ optim_wrapper = dict(
 # learning policy
 param_scheduler = [
     dict(
-        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
-    dict(
         type='PolyLR',
         power=1.0,
-        begin=1500,
+        begin=0,
         end=100000,
         eta_min=0.0,
         by_epoch=False,
@@ -209,7 +207,7 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=2000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=2000))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=250))
 
 
 
@@ -223,8 +221,8 @@ env_cfg = dict(
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='nccl'),
 )
-vis_backends = [dict(type='LocalVisBackend')]
-                # dict(type='TensorboardVisBackend')]
+vis_backends = [dict(type='LocalVisBackend'),
+                dict(type='TensorboardVisBackend')]
 visualizer = dict(
     type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 log_processor = dict(by_epoch=False)

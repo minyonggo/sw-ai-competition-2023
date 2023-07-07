@@ -6,10 +6,11 @@
 norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
 
 crop_size = (256, 256)  # The crop size during training.
+test_img_size = (224, 224)
 data_preprocessor = dict(  # The config of data preprocessor, usually includes image 
     type='SegDataPreProcessor',  # The type of data preprocessor.
-    mean=[123.675, 116.28, 103.53],
-    std=[58.395, 57.12, 57.375],
+    mean=[87.3359904, 91.29594915, 83.01340125],
+    std=[43.7584692, 38.600545950000004, 35.4384822],
     bgr_to_rgb=True,  # Whether to convert image from BGR to RGB.
     pad_val=0,  # Padding value of image.
     seg_pad_val=255,  # Padding value of segmentation map.
@@ -78,11 +79,11 @@ train_pipeline = [  # Training pipeline.
     dict(type='LoadAnnotations', reduce_zero_label=False),  # Second pipeline to load annotations for current image.
 
     # Augmentation pipeline that resize the images and their annotations.
-    dict(
-        type='RandomResize',
-        scale=(1024, 1024),
-        ratio_range=(0.7, 1.3),
-        keep_ratio=True),
+    # dict(
+    #     type='RandomResize',
+    #     scale=(1024, 1024),
+    #     ratio_range=(0.7, 1.3),
+    #     keep_ratio=True),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
@@ -101,7 +102,7 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=crop_size, keep_ratio=True),
+    dict(type='Resize', scale=test_img_size, keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='LoadAnnotations', reduce_zero_label=False),
@@ -178,37 +179,30 @@ test_evaluator = dict(
 
 # optimizer
 # optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
-optimizer = dict(type='AdamW', lr=5e-5, betas=(0.9, 0.999), weight_decay=0.0005)
+optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.005)
 optim_wrapper = dict(type='OptimWrapper', optimizer=optimizer, clip_grad=None)
 # learning policy
 param_scheduler = [
-    dict(
-        type='LinearLR',
-        start_factor=1e-6,
-        by_epoch=False,
-        begin=0,
-        end=1500
-    ),
     dict(
         type='PolyLR',
         eta_min=1e-6,
         power=0.9,
         begin=0,
-        end=20000,
+        end=30000,
         by_epoch=False)
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=2000, val_interval=1000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=30000, val_interval=2000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=50, log_metric_by_epoch=False),
     param_scheduler=dict(type='ParamSchedulerHook'),
-    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=1000),
+    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=2000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=50))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=250))
 
 
 
@@ -231,7 +225,5 @@ log_level = 'INFO'
 
 # LoveDA - DeepLabV3+, R-101-D8
 load_from = "https://download.openmmlab.com/mmsegmentation/v0.5/deeplabv3plus/deeplabv3plus_r101-d8_512x512_80k_loveda/deeplabv3plus_r101-d8_512x512_80k_loveda_20211105_110759-4c1f297e.pth"
-
-resume = False
 
 tta_model = dict(type='SegTTAModel')

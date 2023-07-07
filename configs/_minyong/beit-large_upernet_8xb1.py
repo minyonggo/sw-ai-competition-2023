@@ -5,8 +5,7 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
 
-crop_size = (256, 256)  # The crop size during training.
-test_img_size = (224, 224)
+crop_size = (224, 224)  # The crop size during training.
 data_preprocessor = dict(  # The config of data preprocessor, usually includes image 
     type='SegDataPreProcessor',  # The type of data preprocessor.
     mean=[123.675, 116.28, 103.53],
@@ -19,33 +18,40 @@ data_preprocessor = dict(  # The config of data preprocessor, usually includes i
 model = dict(
     type='EncoderDecoder',
     data_preprocessor=data_preprocessor,
-    pretrained=None,  # The ImageNet pretrained backbone to be loaded
+    # pretrained='pretrain/beit_base_patch16_224_pt22k_ft22k.pth',  # The ImageNet pretrained backbone to be loaded
+
     backbone=dict(
-        type='ResNetV1c',  # The type of backbone
-        depth=101,
-        num_stages=4,
-        out_indices=(0, 1, 2, 3),
-        dilations=(1, 1, 2, 4),
-        strides=(1, 2, 1, 1),
-        norm_cfg=norm_cfg,   # The configuration of norm layer.
-        norm_eval=False,  # Whether to freeze the statistics in BN
-        style='pytorch',
-        contract_dilation=True),  # When dilation > 1, whether contract first layer of dilation.
+        type='BEiT',
+        img_size=crop_size,
+        patch_size=16,
+        in_channels=3,
+        embed_dims=1024,
+        num_layers=24,
+        num_heads=16,
+        mlp_ratio=4,
+        out_indices=[7, 11, 15, 23],
+        qv_bias=True,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.2,
+        norm_cfg=dict(type='LN', eps=1e-6),
+        act_cfg=dict(type='GELU'),
+        norm_eval=False,
+        init_values=1e-6,),
+        
+    neck=dict(type='Feature2Pyramid', embed_dim=1024, rescales=[4, 2, 1, 0.5]),
 
     decode_head=dict(
-        type='DepthwiseSeparableASPPHead',  # Type of decode head
-        in_channels=2048,  # Input channel of decode head.
-        in_index=3,  # The index of feature map to select.
-        channels=512,  # The intermediate channels of decode head.
-        dilations=(1, 12, 24, 36),
-        c1_in_channels=256,
-        c1_channels=48,
+        type='UPerHead',  # Type of decode head
+        in_channels=[1024, 1024, 1024, 1024],  # Input channel of decode head.
+        in_index=[0, 1, 2, 3],  # The index of feature map to select.
+        pool_scales=(1, 2, 3, 6),
+        channels=1024,  # The intermediate channels of decode head.
         dropout_ratio=0.1,  # The dropout ratio before final classification layer.
         num_classes=2,  # Number of segmentation class.
         norm_cfg=norm_cfg,
         align_corners=False,  # The align_corners argument for resize in decoding.
         loss_decode=dict(  # Type of loss used for segmentation.
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+            type='CrossEntropyLoss', use_sigmoid=False, class_weight=[0.25, 0.75], loss_weight=1.0)),
 
     auxiliary_head=dict(
         type='FCNHead',
@@ -59,10 +65,12 @@ model = dict(
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)),
+            type='CrossEntropyLoss', use_sigmoid=False, class_weight=[0.25, 0.75], loss_weight=0.4)),
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))  # The test mode, options are 'whole' and 'slide'
+    test_cfg=dict(mode='whole'),
+    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(426, 426)),   # The test mode, options are 'whole' and 'slide'
+    )
 
 
 ########################################
@@ -73,7 +81,6 @@ model = dict(
 # dataset settings
 dataset_type = 'SatelliteDataset'  # Dataset type, this will be used to define the dataset.
 data_root = 'data/Satellite'  # Root path of data.
-# crop_size = (512, 512)  # The crop size during training.
 train_pipeline = [  # Training pipeline.
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path.
     dict(type='LoadAnnotations', reduce_zero_label=False),  # Second pipeline to load annotations for current image.
@@ -82,7 +89,7 @@ train_pipeline = [  # Training pipeline.
     # dict(
     #     type='RandomResize',
     #     scale=(1024, 1024),
-    #     ratio_range=(0.9, 1.1),
+    #     ratio_range=(0.7, 1.3),
     #     keep_ratio=True),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
     dict(type='RandomFlip', prob=0.5),
@@ -102,10 +109,9 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=test_img_size, keep_ratio=True),
+    dict(type='Resize', scale=crop_size, keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
-    dict(type='LoadAnnotations', reduce_zero_label=False),
     dict(type='PackSegInputs')
 ]
 
@@ -174,26 +180,33 @@ test_evaluator = dict(
 
 
 ########################################
-########## schedule 80k ################
+############## scheduler ###############
 ########################################
 
 # optimizer
-# optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
-optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.005)
-optim_wrapper = dict(type='OptimWrapper', optimizer=optimizer, clip_grad=None)
+optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05)
+optim_wrapper = dict(
+    type='AmpOptimWrapper',
+    optimizer=optimizer,
+    constructor='LayerDecayOptimizerConstructor',
+    paramwise_cfg=dict(num_layers=24, layer_decay_rate=0.95),
+    accumulative_counts=2,
+)
+
 # learning policy
 param_scheduler = [
     dict(
         type='PolyLR',
-        eta_min=1e-6,
-        power=0.9,
+        power=1.0,
         begin=0,
-        end=40000,
-        by_epoch=False)
+        end=60000,
+        eta_min=0.0,
+        by_epoch=False,
+    )
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=2000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=60000, val_interval=2000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
@@ -202,7 +215,7 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=2000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=2000))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=250))
 
 
 
@@ -216,14 +229,14 @@ env_cfg = dict(
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='nccl'),
 )
-vis_backends = [dict(type='LocalVisBackend'),
-                dict(type='TensorboardVisBackend')]
+vis_backends = [dict(type='LocalVisBackend')]
+                # dict(type='TensorboardVisBackend')]
 visualizer = dict(
     type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 log_processor = dict(by_epoch=False)
 log_level = 'INFO'
 
-# LoveDA - DeepLabV3+, R-101-D8
-load_from = "https://download.openmmlab.com/mmsegmentation/v0.5/deeplabv3plus/deeplabv3plus_r101-d8_512x512_160k_ade20k/deeplabv3plus_r101-d8_512x512_160k_ade20k_20200615_123232-38ed86bb.pth"
+# load pretrained model from mmseg
+load_from = "https://download.openmmlab.com/mmsegmentation/v0.5/beit/upernet_beit-large_fp16_8x1_640x640_160k_ade20k/upernet_beit-large_fp16_8x1_640x640_160k_ade20k-8fc0dd5d.pth"
 
 tta_model = dict(type='SegTTAModel')

@@ -5,7 +5,7 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
 
-crop_size = (256, 256)  # The crop size during training.
+crop_size = (224, 224)  # The crop size during training.
 data_preprocessor = dict(  # The config of data preprocessor, usually includes image 
     type='SegDataPreProcessor',  # The type of data preprocessor.
     mean=[123.675, 116.28, 103.53],
@@ -198,23 +198,23 @@ param_scheduler = [
         type='PolyLR',
         power=1.0,
         begin=0,
-        end=50000,
+        end=40000,
         eta_min=0.0,
         by_epoch=False,
     )
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=50000, val_interval=2000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=2000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
-    logger=dict(type='LoggerHook', interval=50, log_metric_by_epoch=False),
+    logger=dict(type='LoggerHook', interval=100, log_metric_by_epoch=False),
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=2000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=1000))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=500))
 
 
 
