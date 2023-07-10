@@ -126,3 +126,4 @@ test-job.sh
 slurm*.out
 inference_
 _satellite
+_ensemble
