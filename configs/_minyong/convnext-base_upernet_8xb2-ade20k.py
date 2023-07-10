@@ -1,93 +1,98 @@
-########################################
-########## model setting ###############
-########################################
-
-# model settings
-norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
-
-crop_size = (224, 224)  # The crop size during training.
-val_img_size = (256, 256)
-test_img_size = (224, 224)
-data_preprocessor = dict(  # The config of data preprocessor, usually includes image 
-    type='SegDataPreProcessor',  # The type of data preprocessor.
+crop_size = (224, 224)
+valid_crop_size = (256, 256)
+data_preprocessor = dict(
+    type='SegDataPreProcessor',
     mean=[87.33, 91.29, 83.01],
     std=[43.75, 38.60, 35.43],
-    bgr_to_rgb=True,  # Whether to convert image from BGR to RGB.
-    pad_val=0,  # Padding value of image.
-    seg_pad_val=255,  # Padding value of segmentation map.
+    bgr_to_rgb=True,
+    pad_val=0,
+    seg_pad_val=255,
     size=crop_size)
+
+norm_cfg = dict(type='SyncBN', requires_grad=True)
+custom_imports = dict(imports='mmpretrain.models', allow_failed_imports=False)
+checkpoint_file = 'https://download.openmmlab.com/mmclassification/v0/convnext/downstream/convnext-base_3rdparty_in21k_20220301-262fd037.pth'  # noqa
 
 model = dict(
     type='EncoderDecoder',
     data_preprocessor=data_preprocessor,
-    pretrained=None,  # The ImageNet pretrained backbone to be loaded
+    pretrained=None,
     backbone=dict(
-        type='ResNetV1c',  # The type of backbone
-        depth=101,
-        num_stages=4,
-        out_indices=(0, 1, 2, 3),
-        dilations=(1, 1, 2, 4),
-        strides=(1, 2, 1, 1),
-        norm_cfg=norm_cfg,   # The configuration of norm layer.
-        norm_eval=False,  # Whether to freeze the statistics in BN
-        style='pytorch',
-        contract_dilation=True),  # When dilation > 1, whether contract first layer of dilation.
+        type='mmpretrain.ConvNeXt',
+        arch='base',
+        out_indices=[0, 1, 2, 3],
+        drop_path_rate=0.4,
+        layer_scale_init_value=1.0,
+        gap_before_final_norm=False,
+        init_cfg=dict(
+            type='Pretrained', checkpoint=checkpoint_file,
+            prefix='backbone.')),
 
     decode_head=dict(
-        type='DepthwiseSeparableASPPHead',  # Type of decode head
-        in_channels=2048,  # Input channel of decode head.
-        in_index=3,  # The index of feature map to select.
-        channels=512,  # The intermediate channels of decode head.
-        dilations=(1, 12, 24, 36),
-        c1_in_channels=256,
-        c1_channels=48,
-        dropout_ratio=0.1,  # The dropout ratio before final classification layer.
-        num_classes=2,  # Number of segmentation class.
+        type='UPerHead',
+        in_channels=[128, 256, 512, 1024],
+        in_index=[0, 1, 2, 3],
+        pool_scales=(1, 2, 3, 6),
+        channels=512,
+        dropout_ratio=0.1,
+        num_classes=2,
         norm_cfg=norm_cfg,
-        align_corners=False,  # The align_corners argument for resize in decoding.
-        loss_decode=[  # Type of loss used for segmentation.
-            # type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
-            dict(type='CrossEntropyLoss', loss_name='loss_ce', loss_weight=1.0),
-            dict(type='DiceLoss', loss_name='loss_dice', loss_weight=1.0)
-        ]),
+        align_corners=False,
+        loss_decode=dict(
+            type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=1.0)),
 
     auxiliary_head=[
-        # dict(
-        #     type='FCNHead',
-        #     in_channels=1024,  # Input channel of auxiliary head.
-        #     in_index=2,  # The index of feature map to select.
-        #     channels=256,  # The intermediate channels of decode head.
-        #     num_convs=1,  # Number of convs in FCNHead. It is usually 1 in auxiliary head.
-        #     concat_input=False,  # Whether concat output of convs with input before classification layer.
-        #     dropout_ratio=0.1,
-        #     num_classes=2,
-        #     norm_cfg=norm_cfg,
-        #     align_corners=False,
-        #     loss_decode=[
-        #         dict(type='CrossEntropyLoss', loss_name='loss_ce', loss_weight=1.0 * 0.4),
-        #         dict(type='DiceLoss', loss_name='loss_dice', loss_weight=1.0 * 0.4)
-        #     ]
-        # ),
         dict(
             type='FCNHead',
-            in_channels=512,  # Input channel of auxiliary head.
-            in_index=1,  # The index of feature map to select.
-            channels=256,  # The intermediate channels of decode head.
-            num_convs=1,  # Number of convs in FCNHead. It is usually 1 in auxiliary head.
-            concat_input=False,  # Whether concat output of convs with input before classification layer.
+            in_channels=512,
+            in_index=2,
+            channels=256,
+            num_convs=1,
+            concat_input=False,
             dropout_ratio=0.1,
             num_classes=2,
             norm_cfg=norm_cfg,
             align_corners=False,
-            loss_decode=[
-                dict(type='CrossEntropyLoss', loss_name='loss_ce', loss_weight=1.0 * 0.4),
-                dict(type='DiceLoss', loss_name='loss_dice', loss_weight=1.0 * 0.4)
+            loss_decode=dict(
+                type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4)
+        ),
+        # dict(
+        #     type='DepthwiseSeparableASPPHead',  # Type of decode head
+        #     in_channels=512,  # Input channel of decode head.
+        #     in_index=2,  # The index of feature map to select.
+        #     channels=512,  # The intermediate channels of decode head.
+        #     dilations=(1, 12, 24, 36),
+        #     c1_in_channels=128,
+        #     c1_channels=48,
+        #     dropout_ratio=0.1,  # The dropout ratio before final classification layer.
+        #     num_classes=2,  # Number of segmentation class.
+        #     norm_cfg=norm_cfg,
+        #     align_corners=False,  # The align_corners argument for resize in decoding.
+        #     loss_decode=[  # Type of loss used for segmentation.
+        #         dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4),
+        #     ]
+        # ),
+        dict(
+            type='DepthwiseSeparableASPPHead',  # Type of decode head
+            in_channels=256,  # Input channel of decode head.
+            in_index=1,  # The index of feature map to select.
+            channels=512,  # The intermediate channels of decode head.
+            dilations=(1, 6, 12, 18),
+            c1_in_channels=128,
+            c1_channels=48,
+            dropout_ratio=0.1,  # The dropout ratio before final classification layer.
+            num_classes=2,  # Number of segmentation class.
+            norm_cfg=norm_cfg,
+            align_corners=False,  # The align_corners argument for resize in decoding.
+            loss_decode=[  # Type of loss used for segmentation.
+                dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4),
             ]
         ),
     ],
     # model training and testing settings
     train_cfg=dict(),
-    test_cfg=dict(mode='whole'))  # The test mode, options are 'whole' and 'slide'
+    test_cfg=dict(mode='whole'))
+
 
 
 ########################################
@@ -110,7 +115,6 @@ train_pipeline = [  # Training pipeline.
     #     ratio_range=(0.7, 1.3),
     #     keep_ratio=True),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
-    # dict(type='RandomCropSAT', crop_size=crop_size, cat_max_ratio=0.85),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
@@ -118,7 +122,7 @@ train_pipeline = [  # Training pipeline.
 
 val_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=val_img_size, keep_ratio=True),
+    dict(type='Resize', scale=valid_crop_size, keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='LoadAnnotations', reduce_zero_label=False),
@@ -128,10 +132,9 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=test_img_size, keep_ratio=True),
+    dict(type='Resize', scale=crop_size, keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
-    dict(type='LoadAnnotations', reduce_zero_label=False),
     dict(type='PackSegInputs')
 ]
 
@@ -154,7 +157,7 @@ tta_pipeline = [
 
 
 train_dataloader = dict(
-    batch_size=64,  # Batch size of a single GPU
+    batch_size=32,  # Batch size of a single GPU
     num_workers=4,  # Worker to pre-fetch data for each single GPU
     persistent_workers=True,  # Shut down the worker processes after an epoch end, which can accelerate training speed.
     sampler=dict(type='InfiniteSampler', shuffle=True),
@@ -200,26 +203,38 @@ test_evaluator = dict(
 
 
 ########################################
-########## schedule 80k ################
+############## scheduler ###############
 ########################################
 
 # optimizer
-# optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
-optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.005)
-optim_wrapper = dict(type='OptimWrapper', optimizer=optimizer, clip_grad=None)
+optimizer = dict(type='AdamW', lr=5e-4, betas=(0.9, 0.999), weight_decay=0.05)
+optim_wrapper = dict(
+    type='AmpOptimWrapper',
+    optimizer=optimizer,
+    paramwise_cfg={
+        'decay_rate': 0.9,
+        'decay_type': 'stage_wise',
+        'num_layers': 12
+    },
+    constructor='LearningRateDecayOptimizerConstructor',
+    loss_scale='dynamic',
+)
+
 # learning policy
-param_scheduler = [        
+param_scheduler = [
     dict(
         type='PolyLR',
-        eta_min=1e-6,
-        power=0.9,
+        power=1.0,
         begin=0,
-        end=40000,
-        by_epoch=False)
+        end=50000,
+        eta_min=0.0,
+        by_epoch=False,
+    )
 ]
 
-# training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=2000)
+
+# training schedule
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=50000, val_interval=2000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
@@ -242,14 +257,16 @@ env_cfg = dict(
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='nccl'),
 )
-vis_backends = [dict(type='LocalVisBackend'),
-                dict(type='TensorboardVisBackend')]
+vis_backends = [dict(type='LocalVisBackend')]
+                # dict(type='TensorboardVisBackend')]
 visualizer = dict(
     type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 log_processor = dict(by_epoch=False)
 log_level = 'INFO'
 
-# LoveDA - DeepLabV3+, R-101-D8
-load_from = "https://download.openmmlab.com/mmsegmentation/v0.5/deeplabv3plus/deeplabv3plus_r101-d8_512x512_80k_loveda/deeplabv3plus_r101-d8_512x512_80k_loveda_20211105_110759-4c1f297e.pth"
+# load pretrained model from mmseg
+load_from = "https://download.openmmlab.com/mmsegmentation/v0.5/convnext/upernet_convnext_base_fp16_640x640_160k_ade20k/upernet_convnext_base_fp16_640x640_160k_ade20k_20220227_182859-9280e39b.pth"
+
+resume = False
 
 tta_model = dict(type='SegTTAModel')

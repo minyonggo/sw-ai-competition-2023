@@ -5,12 +5,12 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
 
-crop_size = (256, 256)  # The crop size during training.
+crop_size = (224, 224)  # The crop size during training.
 test_img_size = (224, 224)
 data_preprocessor = dict(  # The config of data preprocessor, usually includes image 
     type='SegDataPreProcessor',  # The type of data preprocessor.
-    mean=[123.675, 116.28, 103.53],
-    std=[58.395, 57.12, 57.375],
+    mean=[87.33, 91.29, 83.01],
+    std=[43.75, 38.60, 35.43],
     bgr_to_rgb=True,  # Whether to convert image from BGR to RGB.
     pad_val=0,  # Padding value of image.
     seg_pad_val=255,  # Padding value of segmentation map.
@@ -44,8 +44,11 @@ model = dict(
         num_classes=2,  # Number of segmentation class.
         norm_cfg=norm_cfg,
         align_corners=False,  # The align_corners argument for resize in decoding.
-        loss_decode=dict(  # Type of loss used for segmentation.
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+        loss_decode=[  # Type of loss used for segmentation.
+            # type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+            dict(type='CrossEntropyLoss', loss_name='loss_ce', loss_weight=1.0),
+            dict(type='DiceLoss', loss_name='loss_dice', loss_weight=3.0)
+        ]),
 
     auxiliary_head=dict(
         type='FCNHead',
@@ -58,8 +61,10 @@ model = dict(
         num_classes=2,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)),
+        loss_decode=[
+            dict(type='CrossEntropyLoss', loss_name='loss_ce', loss_weight=1.0),
+            dict(type='DiceLoss', loss_name='loss_dice', loss_weight=3.0)
+        ]),
     # model training and testing settings
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))  # The test mode, options are 'whole' and 'slide'
@@ -85,8 +90,9 @@ train_pipeline = [  # Training pipeline.
     #     ratio_range=(0.9, 1.1),
     #     keep_ratio=True),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
+    # dict(type='RandomCropSAT', crop_size=crop_size, cat_max_ratio=0.85),
     dict(type='RandomFlip', prob=0.5),
-    dict(type='PhotoMetricDistortion'),
+    # dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
 ]
 
@@ -128,7 +134,7 @@ tta_pipeline = [
 
 
 train_dataloader = dict(
-    batch_size=16,  # Batch size of a single GPU
+    batch_size=32,  # Batch size of a single GPU
     num_workers=4,  # Worker to pre-fetch data for each single GPU
     persistent_workers=True,  # Shut down the worker processes after an epoch end, which can accelerate training speed.
     sampler=dict(type='InfiniteSampler', shuffle=True),
@@ -182,18 +188,18 @@ test_evaluator = dict(
 optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.005)
 optim_wrapper = dict(type='OptimWrapper', optimizer=optimizer, clip_grad=None)
 # learning policy
-param_scheduler = [
+param_scheduler = [        
     dict(
         type='PolyLR',
         eta_min=1e-6,
         power=0.9,
         begin=0,
-        end=40000,
+        end=50000,
         by_epoch=False)
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=2000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=50000, val_interval=2000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
@@ -202,7 +208,7 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=2000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=2000))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=1000))
 
 
 

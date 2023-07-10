@@ -51,7 +51,7 @@ model = dict(
         norm_cfg=norm_cfg,
         align_corners=False,  # The align_corners argument for resize in decoding.
         loss_decode=dict(  # Type of loss used for segmentation.
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+            type='CrossEntropyLoss', use_sigmoid=False, class_weight=[0.25, 0.75], loss_weight=1.0)),
 
     auxiliary_head=dict(
         type='FCNHead',
@@ -65,7 +65,7 @@ model = dict(
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)),
+            type='CrossEntropyLoss', use_sigmoid=False, class_weight=[0.25, 0.75], loss_weight=0.4)),
     # model training and testing settings
     train_cfg=dict(),
     test_cfg=dict(mode='whole'),
@@ -134,7 +134,7 @@ tta_pipeline = [
 
 
 train_dataloader = dict(
-    batch_size=16,  # Batch size of a single GPU
+    batch_size=32,  # Batch size of a single GPU
     num_workers=4,  # Worker to pre-fetch data for each single GPU
     persistent_workers=True,  # Shut down the worker processes after an epoch end, which can accelerate training speed.
     sampler=dict(type='InfiniteSampler', shuffle=True),
