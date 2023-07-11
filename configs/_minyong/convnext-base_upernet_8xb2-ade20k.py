@@ -1,5 +1,6 @@
 crop_size = (224, 224)
 valid_crop_size = (256, 256)
+resize_ratio = 1.5
 data_preprocessor = dict(
     type='SegDataPreProcessor',
     mean=[87.33, 91.29, 83.01],
@@ -7,7 +8,7 @@ data_preprocessor = dict(
     bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255,
-    size=crop_size)
+    size=(int(crop_size[0] * resize_ratio), int(crop_size[1] * resize_ratio)))
 
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 custom_imports = dict(imports='mmpretrain.models', allow_failed_imports=False)
@@ -38,40 +39,46 @@ model = dict(
         num_classes=2,
         norm_cfg=norm_cfg,
         align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=1.0)),
+        loss_decode=[
+            dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=1.0),
+            # dict(type='DiceLoss', loss_name='loss_dice', loss_weight=1.0 * 0.5),
+        ]
+    ),
 
     auxiliary_head=[
-        dict(
-            type='FCNHead',
-            in_channels=512,
-            in_index=2,
-            channels=256,
-            num_convs=1,
-            concat_input=False,
-            dropout_ratio=0.1,
-            num_classes=2,
-            norm_cfg=norm_cfg,
-            align_corners=False,
-            loss_decode=dict(
-                type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4)
-        ),
         # dict(
-        #     type='DepthwiseSeparableASPPHead',  # Type of decode head
-        #     in_channels=512,  # Input channel of decode head.
-        #     in_index=2,  # The index of feature map to select.
-        #     channels=512,  # The intermediate channels of decode head.
-        #     dilations=(1, 12, 24, 36),
-        #     c1_in_channels=128,
-        #     c1_channels=48,
-        #     dropout_ratio=0.1,  # The dropout ratio before final classification layer.
-        #     num_classes=2,  # Number of segmentation class.
+        #     type='FCNHead',
+        #     in_channels=512,
+        #     in_index=2,
+        #     channels=256,
+        #     num_convs=1,
+        #     concat_input=False,
+        #     dropout_ratio=0.1,
+        #     num_classes=2,
         #     norm_cfg=norm_cfg,
-        #     align_corners=False,  # The align_corners argument for resize in decoding.
-        #     loss_decode=[  # Type of loss used for segmentation.
+        #     align_corners=False,
+        #     loss_decode=[
         #         dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4),
+        #         dict(type='DiceLoss', loss_name='loss_dice', loss_weight=0.4  * 0.5),
         #     ]
         # ),
+        dict(
+            type='DepthwiseSeparableASPPHead',  # Type of decode head
+            in_channels=512,  # Input channel of decode head.
+            in_index=2,  # The index of feature map to select.
+            channels=512,  # The intermediate channels of decode head.
+            dilations=(1, 12, 24, 36),
+            c1_in_channels=128,
+            c1_channels=48,
+            dropout_ratio=0.1,  # The dropout ratio before final classification layer.
+            num_classes=2,  # Number of segmentation class.
+            norm_cfg=norm_cfg,
+            align_corners=False,  # The align_corners argument for resize in decoding.
+            loss_decode=[
+                dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4),
+                # dict(type='DiceLoss', loss_name='loss_dice', loss_weight=0.4  * 0.5),
+            ]
+        ),
         dict(
             type='DepthwiseSeparableASPPHead',  # Type of decode head
             in_channels=256,  # Input channel of decode head.
@@ -84,8 +91,9 @@ model = dict(
             num_classes=2,  # Number of segmentation class.
             norm_cfg=norm_cfg,
             align_corners=False,  # The align_corners argument for resize in decoding.
-            loss_decode=[  # Type of loss used for segmentation.
+            loss_decode=[
                 dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4),
+                # dict(type='DiceLoss', loss_name='loss_dice', loss_weight=0.4 * 0.5),
             ]
         ),
     ],
@@ -115,6 +123,9 @@ train_pipeline = [  # Training pipeline.
     #     ratio_range=(0.7, 1.3),
     #     keep_ratio=True),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
+
+    dict(type='Resize', scale=(crop_size[0] * resize_ratio, crop_size[1] * resize_ratio), keep_ratio=True),
+
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
@@ -122,7 +133,7 @@ train_pipeline = [  # Training pipeline.
 
 val_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=valid_crop_size, keep_ratio=True),
+    dict(type='Resize', scale=(valid_crop_size[0] * resize_ratio, valid_crop_size[1] * resize_ratio), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='LoadAnnotations', reduce_zero_label=False),
@@ -132,7 +143,7 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=crop_size, keep_ratio=True),
+    dict(type='Resize', scale=(crop_size[0] * resize_ratio, crop_size[1] * resize_ratio), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='PackSegInputs')
@@ -151,7 +162,7 @@ tta_pipeline = [
             [
                 dict(type='RandomFlip', prob=0., direction='horizontal'),
                 dict(type='RandomFlip', prob=1., direction='horizontal')
-            ], [dict(type='LoadAnnotations')], [dict(type='PackSegInputs')]
+            ], [dict(type='PackSegInputs')]
         ])
 ]
 
@@ -198,7 +209,7 @@ test_evaluator = dict(
     type='CityscapesMetric',
     format_only=True,
     keep_results=True,
-    output_dir='_satellite/deeplabv3plus/format_results')
+    output_dir='_satellite/upernet_convnext-b_ver6-test/format_results')
 
 
 

@@ -7,8 +7,7 @@ from tqdm import tqdm
 def rle_encode(mask):
     pixels = mask.flatten()
 
-    # if pixels.sum() < 5:
-    #     return ' '
+    pixels = pixels - 7
     
     pixels = np.concatenate([[0], pixels, [0]])
     runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
@@ -21,7 +20,7 @@ submission = pd.read_csv("/home/mykang/mmsegmentation/data/sample_submission.csv
 for idx in tqdm(range(submission.shape[0])):
     img_id = submission['img_id'].iloc[idx]
 
-    mask = cv2.imread(f"/home/mykang/mmsegmentation/inference_/20230706_deeplabv3plus_r101_ver1/{img_id}.png", cv2.IMREAD_GRAYSCALE)
+    mask = cv2.imread(f"/home/mykang/mmsegmentation/_satellite/deeplabv3plus/format_results/{img_id}.png", cv2.IMREAD_GRAYSCALE)
 
     rle_encoding = rle_encode(mask)
 

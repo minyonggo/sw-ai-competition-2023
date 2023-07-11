@@ -5,15 +5,20 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
 
-crop_size = (224, 224)  # The crop size during training.
+crop_size = (300, 300)
+valid_crop_size = (320, 320)
+resize_ratio = 1
+
+stride_size = (int((valid_crop_size[0] - crop_size[0]) * resize_ratio), int((valid_crop_size[0] - crop_size[0]) * resize_ratio))
+
 data_preprocessor = dict(  # The config of data preprocessor, usually includes image 
     type='SegDataPreProcessor',  # The type of data preprocessor.
-    mean=[123.675, 116.28, 103.53],
-    std=[58.395, 57.12, 57.375],
+    mean=[87.33, 91.29, 83.01],
+    std=[43.75, 38.60, 35.43],
     bgr_to_rgb=True,  # Whether to convert image from BGR to RGB.
     pad_val=0,  # Padding value of image.
     seg_pad_val=255,  # Padding value of segmentation map.
-    size=crop_size)
+    size=(int(crop_size[0] * resize_ratio), int(crop_size[1] * resize_ratio)))
 
 model = dict(
     type='EncoderDecoder',
@@ -51,26 +56,50 @@ model = dict(
         norm_cfg=norm_cfg,
         align_corners=False,  # The align_corners argument for resize in decoding.
         loss_decode=dict(  # Type of loss used for segmentation.
-            type='CrossEntropyLoss', use_sigmoid=False, class_weight=[0.25, 0.75], loss_weight=1.0)),
+            type='CrossEntropyLoss', use_sigmoid=False, loss_name='loss_ce', loss_weight=1.0)),
 
-    auxiliary_head=dict(
-        type='FCNHead',
-        in_channels=768,  # Input channel of auxiliary head.
-        in_index=2,  # The index of feature map to select.
-        channels=256,  # The intermediate channels of decode head.
-        num_convs=1,  # Number of convs in FCNHead. It is usually 1 in auxiliary head.
-        concat_input=False,  # Whether concat output of convs with input before classification layer.
-        dropout_ratio=0.1,
-        num_classes=2,
-        norm_cfg=norm_cfg,
-        align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=False, class_weight=[0.25, 0.75], loss_weight=0.4)),
+    auxiliary_head=[
+        # dict(
+        #     type='FCNHead',
+        #     in_channels=768,  # Input channel of auxiliary head.
+        #     in_index=2,  # The index of feature map to select.
+        #     channels=256,  # The intermediate channels of decode head.
+        #     num_convs=1,  # Number of convs in FCNHead. It is usually 1 in auxiliary head.
+        #     concat_input=False,  # Whether concat output of convs with input before classification layer.
+        #     dropout_ratio=0.1,
+        #     num_classes=2,
+        #     norm_cfg=norm_cfg,
+        #     align_corners=False,
+        #     loss_decode=dict(
+        #         type='CrossEntropyLoss', use_sigmoid=False, class_weight=[0.25, 0.75], loss_weight=0.4)
+        # ),
+        dict(
+            type='DepthwiseSeparableASPPHead',  # Type of decode head
+            in_channels=768,  # Input channel of decode head.
+            in_index=2,  # The index of feature map to select.
+            channels=512,  # The intermediate channels of decode head.
+            dilations=(1, 12, 24, 36),
+            c1_in_channels=768,
+            c1_channels=192,
+            dropout_ratio=0.1,  # The dropout ratio before final classification layer.
+            num_classes=2,  # Number of segmentation class.
+            norm_cfg=norm_cfg,
+            align_corners=False,  # The align_corners argument for resize in decoding.
+            loss_decode=[
+                dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4),
+                # dict(type='DiceLoss', loss_name='loss_dice', loss_weight=0.4  * 0.5),
+            ]
+        ),
+    ],
     # model training and testing settings
-    train_cfg=dict(),
-    test_cfg=dict(mode='whole'),
-    # test_cfg=dict(mode='slide', crop_size=crop_size, stride=(426, 426)),   # The test mode, options are 'whole' and 'slide'
-    )
+    train_cfg=dict(),    
+    test_cfg=dict(
+        mode='slide',
+        crop_size=(int(crop_size[0] * resize_ratio), int(crop_size[1] * resize_ratio)),
+        stride=stride_size
+    ),
+    # test_cfg=dict(mode='whole'), # The test mode, options are 'whole' and 'slide'
+)
 
 
 ########################################
@@ -92,6 +121,9 @@ train_pipeline = [  # Training pipeline.
     #     ratio_range=(0.7, 1.3),
     #     keep_ratio=True),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
+
+    dict(type='Resize', scale=(int(crop_size[0] * resize_ratio), int(crop_size[1] * resize_ratio)), keep_ratio=True),
+
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
@@ -99,7 +131,7 @@ train_pipeline = [  # Training pipeline.
 
 val_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=crop_size, keep_ratio=True),
+    dict(type='Resize', scale=(int(valid_crop_size[0] * resize_ratio), int(valid_crop_size[1] * resize_ratio)), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='LoadAnnotations', reduce_zero_label=False),
@@ -109,7 +141,7 @@ val_pipeline = [
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
-    dict(type='Resize', scale=crop_size, keep_ratio=True),
+    dict(type='Resize', scale=(int(crop_size[0] * resize_ratio), int(crop_size[1] * resize_ratio)), keep_ratio=True),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='PackSegInputs')
@@ -128,13 +160,15 @@ tta_pipeline = [
             [
                 dict(type='RandomFlip', prob=0., direction='horizontal'),
                 dict(type='RandomFlip', prob=1., direction='horizontal')
-            ], [dict(type='LoadAnnotations')], [dict(type='PackSegInputs')]
+            ],
+            # [dict(type='LoadAnnotations')],
+            [dict(type='PackSegInputs')]
         ])
 ]
 
 
 train_dataloader = dict(
-    batch_size=32,  # Batch size of a single GPU
+    batch_size=16,  # Batch size of a single GPU
     num_workers=4,  # Worker to pre-fetch data for each single GPU
     persistent_workers=True,  # Shut down the worker processes after an epoch end, which can accelerate training speed.
     sampler=dict(type='InfiniteSampler', shuffle=True),
@@ -184,7 +218,7 @@ test_evaluator = dict(
 ########################################
 
 # optimizer
-optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05)
+optimizer = dict(type='AdamW', lr=3e-4, betas=(0.9, 0.999), weight_decay=0.05)
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=optimizer,
@@ -198,14 +232,14 @@ param_scheduler = [
         type='PolyLR',
         power=1.0,
         begin=0,
-        end=40000,
+        end=50000,
         eta_min=0.0,
         by_epoch=False,
     )
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=2000)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=50000, val_interval=10)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(
@@ -214,7 +248,7 @@ default_hooks = dict(
     param_scheduler=dict(type='ParamSchedulerHook'),
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=2000),
     sampler_seed=dict(type='DistSamplerSeedHook'),
-    visualization=dict(type='SegVisualizationHook', draw=True, interval=500))
+    visualization=dict(type='SegVisualizationHook', draw=True, interval=250))
 
 
 
