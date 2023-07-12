@@ -5,9 +5,9 @@
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)  # Segmentation usually uses SyncBN
 
-crop_size = (300, 300)
-valid_crop_size = (320, 320)
-resize_ratio = 1
+crop_size = (224, 224)
+valid_crop_size = (256, 256)
+resize_ratio = 1.5
 
 stride_size = (int((valid_crop_size[0] - crop_size[0]) * resize_ratio), int((valid_crop_size[0] - crop_size[0]) * resize_ratio))
 
@@ -27,7 +27,7 @@ model = dict(
 
     backbone=dict(
         type='BEiT',
-        img_size=crop_size,
+        img_size=(int(crop_size[0] * resize_ratio), int(crop_size[1] * resize_ratio)),
         patch_size=16,
         in_channels=3,
         embed_dims=768,
@@ -88,6 +88,23 @@ model = dict(
             loss_decode=[
                 dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4),
                 # dict(type='DiceLoss', loss_name='loss_dice', loss_weight=0.4  * 0.5),
+            ]
+        ),
+        dict(
+            type='DepthwiseSeparableASPPHead',  # Type of decode head
+            in_channels=768,  # Input channel of decode head.
+            in_index=1,  # The index of feature map to select.
+            channels=512,  # The intermediate channels of decode head.
+            dilations=(1, 12, 24, 36),
+            c1_in_channels=768,
+            c1_channels=192,
+            dropout_ratio=0.1,  # The dropout ratio before final classification layer.
+            num_classes=2,  # Number of segmentation class.
+            norm_cfg=norm_cfg,
+            align_corners=False,  # The align_corners argument for resize in decoding.
+            loss_decode=[
+                dict(type='CrossEntropyLoss', loss_name='loss_ce', use_sigmoid=False, loss_weight=0.4),
+                # dict(type='DiceLoss', loss_name='loss_dice', loss_weight=0.4 * 0.5),
             ]
         ),
     ],
@@ -239,7 +256,7 @@ param_scheduler = [
 ]
 
 # training schedule for 80k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=50000, val_interval=10)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=50000, val_interval=2000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 default_hooks = dict(

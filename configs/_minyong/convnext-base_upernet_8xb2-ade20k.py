@@ -122,18 +122,21 @@ train_pipeline = [  # Training pipeline.
     #     scale=(1024, 1024),
     #     ratio_range=(0.7, 1.3),
     #     keep_ratio=True),
-    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.85),
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.9),
 
     dict(type='Resize', scale=(crop_size[0] * resize_ratio, crop_size[1] * resize_ratio), keep_ratio=True),
 
-    dict(type='RandomFlip', prob=0.5),
-    dict(type='PhotoMetricDistortion'),
+    # dict(type='RandomFlip', prob=0.5),
+    dict(type='RandomRotFlip', rotate_prob=0, flip_prob=0.5),
+    dict(type='ContrastBrightness', alpha=1.5, beta=5),
+    dict(type='PhotoMetricDistortion', brightness_delta = 0, contrast_range = (1.0, 1.0)),
     dict(type='PackSegInputs')
 ]
 
 val_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
     dict(type='Resize', scale=(valid_crop_size[0] * resize_ratio, valid_crop_size[1] * resize_ratio), keep_ratio=True),
+    dict(type='ContrastBrightness', alpha=1.5, beta=5),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='LoadAnnotations', reduce_zero_label=False),
@@ -144,6 +147,7 @@ val_pipeline = [
 test_pipeline = [
     dict(type='LoadImageFromFile'),  # First pipeline to load images from file path
     dict(type='Resize', scale=(crop_size[0] * resize_ratio, crop_size[1] * resize_ratio), keep_ratio=True),
+    dict(type='ContrastBrightness', alpha=1.5, beta=5),
     # add loading annotation after ``Resize`` because ground truth
     # does not need to do resize data transform
     dict(type='PackSegInputs')
@@ -209,7 +213,7 @@ test_evaluator = dict(
     type='CityscapesMetric',
     format_only=True,
     keep_results=True,
-    output_dir='_satellite/upernet_convnext-b_ver6-test/format_results')
+    output_dir='_satellite/upernet_convnext-b_ver7/format_results')
 
 
 

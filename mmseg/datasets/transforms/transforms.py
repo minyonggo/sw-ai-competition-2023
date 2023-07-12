@@ -397,11 +397,10 @@ class RandomCropSAT(BaseTransform):
 
         img = results['img']
         crop_bbox = generate_crop_bbox(img)
-        use_max_ratio = random.random() > 0.2
         
-        if use_max_ratio:
-            # Repeat 15 times
-            for _ in range(15):
+        if self.cat_max_ratio < 1.:
+            # Repeat 10 times
+            for _ in range(10):
                 seg_temp = self.crop(results['gt_seg_map'], crop_bbox)
                 labels, cnt = np.unique(seg_temp, return_counts=True)
                 cnt = cnt[labels != self.ignore_index]
@@ -424,6 +423,8 @@ class RandomCropSAT(BaseTransform):
 
         crop_y1, crop_y2, crop_x1, crop_x2 = crop_bbox
         img = img[crop_y1:crop_y2, crop_x1:crop_x2, ...]
+
+
         return img
 
     def transform(self, results: dict) -> dict:
@@ -616,6 +617,44 @@ class RGB2Gray(BaseTransform):
         repr_str += f'(out_channels={self.out_channels}, ' \
                     f'weights={self.weights})'
         return repr_str
+
+
+@TRANSFORMS.register_module()
+class ContrastBrightness(BaseTransform):
+    """Convert contrast and brightness.
+    """
+
+    def __init__(self, alpha=1.0, beta=0):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+
+
+    def transform(self, results: dict) -> dict:
+        """Call function to convert RGB image to grayscale image.
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Result dict with grayscale image.
+        """
+        img = results['img']
+        
+        # make image contrasted
+        img = img.astype(np.float32) * self.alpha + self.beta
+        img = np.clip(img, 0, 255)
+
+        results['img'] = img
+
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(out_channels={self.out_channels}, ' \
+                    f'weights={self.weights})'
+        return repr_str
+
 
 
 @TRANSFORMS.register_module()

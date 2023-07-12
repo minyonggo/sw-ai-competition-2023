@@ -20,13 +20,14 @@ submission = pd.read_csv("/home/mykang/mmsegmentation/data/sample_submission.csv
 for idx in tqdm(range(submission.shape[0])):
     img_id = submission['img_id'].iloc[idx]
 
-    mask = cv2.imread(f"/home/mykang/mmsegmentation/_satellite/deeplabv3plus/format_results/{img_id}.png", cv2.IMREAD_GRAYSCALE)
+    mask = cv2.imread(f"/home/mykang/mmsegmentation/_satellite/conv_ver6/format_results/{img_id}.png", cv2.IMREAD_GRAYSCALE)
 
     rle_encoding = rle_encode(mask)
 
     if rle_encoding == '':
         rle_encoding = -1
+    
+    submission.at[idx, 'mask_rle'] = rle_encoding
 
-    submission['mask_rle'].iloc[idx] = rle_encoding
 
 submission.to_csv("result.csv", index=False)

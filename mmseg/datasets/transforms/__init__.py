@@ -11,7 +11,7 @@ from .transforms import (CLAHE, AdjustGamma, BioMedical3DPad,
                          PhotoMetricDistortion, RandomCrop, RandomCropSAT, RandomCutOut,
                          RandomMosaic, RandomRotate, RandomRotFlip, Rerange,
                          ResizeShortestEdge, ResizeToMultiple, RGB2Gray,
-                         SegRescale)
+                         SegRescale, ContrastBrightness)
 
 # yapf: enable
 __all__ = [
@@ -22,5 +22,5 @@ __all__ = [
     'LoadBiomedicalAnnotation', 'LoadBiomedicalData', 'GenerateEdge',
     'ResizeShortestEdge', 'BioMedicalGaussianNoise', 'BioMedicalGaussianBlur',
     'BioMedical3DRandomFlip', 'BioMedicalRandomGamma', 'BioMedical3DPad',
-    'RandomRotFlip', 
+    'RandomRotFlip', 'ContrastBrightness',
 ]
